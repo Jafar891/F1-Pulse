@@ -1,0 +1,116 @@
+# =============================================================================
+# F1-Pulse | SODA Checks — Silver Layer
+# File:     soda/checks_silver.yml
+# Author:   Jafar891
+# Updated:  2026
+#
+# Data quality checks for Silver Delta tables.
+# Run with:
+#   soda scan -d f1_pulse_databricks -c soda/configuration.yml soda/checks_silver.yml
+# =============================================================================
+
+
+# ---------------------------------------------------------------------------
+# silver.cleaned_sessions
+# ---------------------------------------------------------------------------
+checks for silver.cleaned_sessions:
+
+  # Freshness & volume
+  - row_count > 0:
+      name: Sessions table is not empty
+
+  - row_count >= 2:
+      name: At least one Race and one Qualifying session present
+
+  # Primary key integrity
+  - missing_count(session_id) = 0:
+      name: session_id has no nulls
+
+  - duplicate_count(session_id) = 0:
+      name: session_id is unique
+
+  # Session type constraint — only RACE and QUALIFYING allowed
+  - invalid_count(session_type) = 0:
+      name: session_type contains only RACE or QUALIFYING
+      valid values: [RACE, QUALIFYING]
+
+  # Timestamp integrity
+  - missing_count(start_time) = 0:
+      name: start_time has no nulls
+
+  - missing_count(end_time) = 0:
+      name: end_time has no nulls
+
+  # Audit columns
+  - missing_count(processed_at) = 0:
+      name: processed_at audit column is populated
+
+  - missing_count(pipeline_year) = 0:
+      name: pipeline_year audit column is populated
+
+  # Year sanity — pipeline_year should match session year
+  - min(year) >= 2023:
+      name: year column is plausible (not ancient data)
+
+  - max(year) <= 2030:
+      name: year column is plausible (not future data)
+
+
+# ---------------------------------------------------------------------------
+# silver.enriched_laps
+# ---------------------------------------------------------------------------
+checks for silver.enriched_laps:
+
+  # Volume
+  - row_count > 0:
+      name: Enriched laps table is not empty
+
+  # Key columns — no nulls
+  - missing_count(driver_number) = 0:
+      name: driver_number has no nulls
+
+  - missing_count(full_name) = 0:
+      name: full_name has no nulls
+
+  - missing_count(team_name) = 0:
+      name: team_name has no nulls
+
+  - missing_count(lap_number) = 0:
+      name: lap_number has no nulls
+
+  - missing_count(is_valid_lap) = 0:
+      name: is_valid_lap flag has no nulls
+
+  # Lap duration — nulls are allowed (flagged as invalid), but must be flagged
+  - invalid_count(lap_duration) = 0:
+      name: lap_duration nulls are correctly flagged as invalid
+      where: is_valid_lap = true
+      # Valid laps must have a non-null lap duration
+      missing_count(lap_duration) = 0
+
+  # Valid lap duration range — valid laps only
+  - min(lap_duration) >= 60:
+      name: Valid laps have realistic minimum duration (>= 60s)
+      where: is_valid_lap = true
+
+  - max(lap_duration) <= 300:
+      name: Valid laps have realistic maximum duration (<= 300s)
+      where: is_valid_lap = true
+
+  # Lap number sanity
+  - min(lap_number) >= 1:
+      name: lap_number starts at 1 or higher
+
+  - max(lap_number) <= 100:
+      name: lap_number does not exceed 100 (F1 race max)
+
+  # Valid lap ratio — at least 70% of laps should be valid
+  - (valid_lap_ratio) >= 0.70:
+      name: At least 70% of laps are valid
+      metrics:
+        valid_lap_ratio:
+          formula: count_where(is_valid_lap = true) / row_count
+
+  # Audit column
+  - missing_count(processed_at) = 0:
+      name: processed_at audit column is populated

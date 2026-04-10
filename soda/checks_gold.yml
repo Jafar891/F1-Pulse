@@ -1,0 +1,175 @@
+# =============================================================================
+# F1-Pulse | SODA Checks — Gold Layer
+# File:     soda/checks_gold.yml
+# Author:   Jafar891
+# Updated:  2026
+#
+# Data quality checks for Gold Delta tables (dashboard-facing).
+# Run with:
+#   soda scan -d f1_pulse_databricks -c soda/configuration.yml soda/checks_gold.yml
+# =============================================================================
+
+
+# ---------------------------------------------------------------------------
+# gold.driver_performance_metrics
+# ---------------------------------------------------------------------------
+checks for gold.driver_performance_metrics:
+
+  # Volume
+  - row_count > 0:
+      name: Driver leaderboard is not empty
+
+  - row_count >= 10:
+      name: At least 10 drivers in the leaderboard (typical F1 grid is 20)
+
+  # Rank integrity
+  - missing_count(position_rank) = 0:
+      name: position_rank has no nulls
+
+  - min(position_rank) = 1:
+      name: Ranking starts at 1
+
+  - duplicate_count(position_rank) = 0:
+      name: position_rank is unique per driver (dense_rank used correctly)
+
+  - duplicate_count(driver_number) = 0:
+      name: Each driver appears exactly once
+
+  # Key metric nulls
+  - missing_count(fastest_lap_s) = 0:
+      name: fastest_lap_s has no nulls
+
+  - missing_count(avg_lap_time_s) = 0:
+      name: avg_lap_time_s has no nulls
+
+  - missing_count(total_valid_laps) = 0:
+      name: total_valid_laps has no nulls
+
+  # Lap time sanity
+  - min(fastest_lap_s) >= 60:
+      name: Fastest lap is realistically >= 60 seconds
+
+  - max(fastest_lap_s) <= 300:
+      name: Fastest lap is realistically <= 300 seconds
+
+  - min(avg_lap_time_s) >= 60:
+      name: Average lap time is realistically >= 60 seconds
+
+  # Consistency metric — std-dev should never be negative
+  - min(lap_consistency_s) >= 0:
+      name: lap_consistency_s (std-dev) is non-negative
+
+  # Every driver must have completed at least 1 valid lap
+  - min(total_valid_laps) >= 1:
+      name: Every driver has at least 1 valid lap
+
+  # Audit
+  - missing_count(generated_at) = 0:
+      name: generated_at audit column is populated
+
+  - missing_count(season_year) = 0:
+      name: season_year audit column is populated
+
+
+# ---------------------------------------------------------------------------
+# gold.constructor_standings
+# ---------------------------------------------------------------------------
+checks for gold.constructor_standings:
+
+  # Volume
+  - row_count > 0:
+      name: Constructor standings is not empty
+
+  - row_count >= 5:
+      name: At least 5 constructors present (typical F1 season has 10)
+
+  # Rank integrity
+  - missing_count(constructor_rank) = 0:
+      name: constructor_rank has no nulls
+
+  - min(constructor_rank) = 1:
+      name: Constructor ranking starts at 1
+
+  - duplicate_count(constructor_rank) = 0:
+      name: constructor_rank is unique per team
+
+  - duplicate_count(team_name) = 0:
+      name: Each constructor appears exactly once
+
+  # Key metric nulls
+  - missing_count(best_lap_s) = 0:
+      name: best_lap_s has no nulls
+
+  - missing_count(avg_team_pace_s) = 0:
+      name: avg_team_pace_s has no nulls
+
+  - missing_count(total_valid_laps) = 0:
+      name: total_valid_laps has no nulls
+
+  # Lap time sanity
+  - min(best_lap_s) >= 60:
+      name: Best constructor lap is realistically >= 60 seconds
+
+  - min(avg_team_pace_s) >= 60:
+      name: Average team pace is realistically >= 60 seconds
+
+  # avg pace should always be >= best lap (average can't beat the best)
+  - avg_team_pace_s >= best_lap_s:
+      name: avg_team_pace_s is always >= best_lap_s
+
+  # Audit
+  - missing_count(generated_at) = 0:
+      name: generated_at audit column is populated
+
+
+# ---------------------------------------------------------------------------
+# gold.lap_progression
+# ---------------------------------------------------------------------------
+checks for gold.lap_progression:
+
+  # Volume
+  - row_count > 0:
+      name: Lap progression table is not empty
+
+  # Key column nulls
+  - missing_count(driver_number) = 0:
+      name: driver_number has no nulls
+
+  - missing_count(lap_number) = 0:
+      name: lap_number has no nulls
+
+  - missing_count(lap_duration_s) = 0:
+      name: lap_duration_s has no nulls (only valid laps are in Gold)
+
+  - missing_count(rolling_avg_5lap_s) = 0:
+      name: rolling_avg_5lap_s has no nulls
+
+  # Lap number sanity
+  - min(lap_number) >= 1:
+      name: lap_number starts at 1
+
+  - max(lap_number) <= 100:
+      name: lap_number does not exceed 100
+
+  # Duration sanity — only valid laps reach Gold
+  - min(lap_duration_s) >= 60:
+      name: lap_duration_s is >= 60 seconds (invalid laps excluded)
+
+  - max(lap_duration_s) <= 300:
+      name: lap_duration_s is <= 300 seconds
+
+  # Rolling average sanity
+  - min(rolling_avg_5lap_s) >= 60:
+      name: rolling_avg_5lap_s is >= 60 seconds
+
+  # Rolling avg must be >= fastest single lap of a driver
+  # (a mean can't be lower than the minimum value in the window)
+  - rolling_avg_5lap_s >= lap_duration_s * 0.95:
+      name: rolling_avg_5lap_s is not implausibly lower than lap_duration_s
+
+  # Audit
+  - missing_count(generated_at) = 0:
+      name: generated_at audit column is populated
+
+  - missing_count(season_year) = 0:
+      name: season_year audit column is populated
