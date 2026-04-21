@@ -14,73 +14,81 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 import pytest
-from pyspark.sql import Row
-from pyspark.sql.types import IntegerType, FloatType, BooleanType, TimestampType
+from datetime import datetime
+from pyspark.sql.types import (
+    StructType, StructField, IntegerType, FloatType, 
+    BooleanType, StringType, TimestampType
+)
 from modules.silver_transforms import transform_sessions, transform_laps
 
 
 # ---------------------------------------------------------------------------
-# Fixtures — Bronze-shaped data (as produced by pdf_to_spark)
+# Fixtures — Bronze-shaped data (Explicit Schemas)
 # ---------------------------------------------------------------------------
 
 @pytest.fixture
 def bronze_sessions(spark):
-    return spark.createDataFrame([
-        Row(
-            session_key=9158, session_name="Abu Dhabi Grand Prix",
-            session_type="Race", location="Yas Marina Circuit",
-            country_name=" United Arab Emirates ", year=2026,
-            date_start="2026-11-24T13:00:00", date_end="2026-11-24T15:10:00",
-            ingested_at=None, source_url="http://openf1.org/v1/sessions"
-        ),
-        Row(
-            session_key=9157, session_name="Abu Dhabi Qualifying",
-            session_type="Qualifying", location="Yas Marina Circuit",
-            country_name="United Arab Emirates", year=2026,
-            date_start="2026-11-23T13:00:00", date_end="2026-11-23T14:00:00",
-            ingested_at=None, source_url="http://openf1.org/v1/sessions"
-        ),
-        Row(
-            session_key=9155, session_name="Abu Dhabi Practice 1",
-            session_type="Practice 1", location="Yas Marina Circuit",
-            country_name="United Arab Emirates", year=2026,
-            date_start="2026-11-22T09:30:00", date_end="2026-11-22T10:30:00",
-            ingested_at=None, source_url="http://openf1.org/v1/sessions"
-        ),
-        Row(
-            session_key=None, session_name="Ghost Session",
-            session_type="Race", location="Unknown",
-            country_name="Unknown", year=2026,
-            date_start="2026-01-01T00:00:00", date_end="2026-01-01T01:00:00",
-            ingested_at=None, source_url="http://openf1.org/v1/sessions"
-        ),
+    """Bronze sessions with EXPLICIT schemas to prevent inference errors."""
+    schema = StructType([
+        StructField("session_key", IntegerType(), True),
+        StructField("session_name", StringType(), True),
+        StructField("session_type", StringType(), True),
+        StructField("location", StringType(), True),
+        StructField("country_name", StringType(), True),
+        StructField("year", IntegerType(), True),
+        StructField("date_start", TimestampType(), True),
+        StructField("date_end", TimestampType(), True),
+        StructField("ingested_at", StringType(), True),
+        StructField("source_url", StringType(), True)
     ])
+    
+    data = [
+        (9158, "Abu Dhabi Grand Prix", "Race", "Yas Marina Circuit", " United Arab Emirates ", 2026, datetime(2026, 11, 24, 13, 0, 0), datetime(2026, 11, 24, 15, 10, 0), None, "http://openf1.org/v1/sessions"),
+        (9157, "Abu Dhabi Qualifying", "Qualifying", "Yas Marina Circuit", "United Arab Emirates", 2026, datetime(2026, 11, 23, 13, 0, 0), datetime(2026, 11, 23, 14, 0, 0), None, "http://openf1.org/v1/sessions"),
+        (9155, "Abu Dhabi Practice 1", "Practice 1", "Yas Marina Circuit", "United Arab Emirates", 2026, datetime(2026, 11, 22, 9, 30, 0), datetime(2026, 11, 22, 10, 30, 0), None, "http://openf1.org/v1/sessions"),
+        (None, "Ghost Session", "Race", "Unknown", "Unknown", 2026, datetime(2026, 1, 1, 0, 0, 0), datetime(2026, 1, 1, 1, 0, 0), None, "http://openf1.org/v1/sessions")
+    ]
+    return spark.createDataFrame(data, schema=schema)
 
 
 @pytest.fixture
 def bronze_laps(spark):
-    return spark.createDataFrame([
-        Row(driver_number="1",  lap_number=1, lap_duration=88.512, is_pit_out_lap=False),
-        Row(driver_number="1",  lap_number=2, lap_duration=89.034, is_pit_out_lap=False),
-        Row(driver_number="1",  lap_number=3, lap_duration=None,   is_pit_out_lap=False),
-        Row(driver_number="1",  lap_number=4, lap_duration=88.900, is_pit_out_lap=True),
-        Row(driver_number="1",  lap_number=5, lap_duration=25.001, is_pit_out_lap=False),
-        Row(driver_number="44", lap_number=1, lap_duration=91.200, is_pit_out_lap=False),
-        Row(driver_number="44", lap_number=2, lap_duration=90.800, is_pit_out_lap=False),
-        Row(driver_number="99", lap_number=1, lap_duration=88.000, is_pit_out_lap=False),
+    schema = StructType([
+        StructField("driver_number", StringType(), True),
+        StructField("lap_number", IntegerType(), True),
+        StructField("lap_duration", FloatType(), True),
+        StructField("is_pit_out_lap", BooleanType(), True)
     ])
+    
+    data = [
+        ("1",  1, 88.512, False),
+        ("1",  2, 89.034, False),
+        ("1",  3, None,   False),
+        ("1",  4, 88.900, True),
+        ("1",  5, 25.001, False),
+        ("44", 1, 91.200, False),
+        ("44", 2, 90.800, False),
+        ("99", 1, 88.000, False)
+    ]
+    return spark.createDataFrame(data, schema=schema)
 
 
 @pytest.fixture
 def bronze_drivers(spark):
-    return spark.createDataFrame([
-        Row(driver_number="1",  full_name="Max Verstappen", team_name="Red Bull Racing",
-            country_code="NLD", headshot_url="http://img/ver"),
-        Row(driver_number="1",  full_name="Max Verstappen", team_name="Red Bull Racing",
-            country_code="NLD", headshot_url="http://img/ver"),   # intentional duplicate
-        Row(driver_number="44", full_name="Lewis Hamilton", team_name="Ferrari",
-            country_code="GBR", headshot_url="http://img/ham"),
+    schema = StructType([
+        StructField("driver_number", StringType(), True),
+        StructField("full_name", StringType(), True),
+        StructField("team_name", StringType(), True),
+        StructField("country_code", StringType(), True),
+        StructField("headshot_url", StringType(), True)
     ])
+    
+    data = [
+        ("1",  "Max Verstappen", "Red Bull Racing", "NLD", "http://img/ver"),
+        ("1",  "Max Verstappen", "Red Bull Racing", "NLD", "http://img/ver"),   # intentional duplicate
+        ("44", "Lewis Hamilton", "Ferrari", "GBR", "http://img/ham")
+    ]
+    return spark.createDataFrame(data, schema=schema)
 
 
 # ---------------------------------------------------------------------------
@@ -109,11 +117,11 @@ class TestBronzeToSilverSessions:
 
     def test_silver_session_schema_types(self, spark, bronze_sessions):
         result = transform_sessions(bronze_sessions, pipeline_year=2026)
-        schema = {f.name: f.dataType for f in result.schema.fields}
-        assert isinstance(schema["session_id"],    IntegerType)
-        assert isinstance(schema["year"],          IntegerType)
-        assert isinstance(schema["pipeline_year"], IntegerType)
-        assert isinstance(schema["start_time"],    TimestampType)
+        schema_dict = {f.name: f.dataType for f in result.schema.fields}
+        assert isinstance(schema_dict["session_id"],    IntegerType)
+        assert isinstance(schema_dict["year"],          IntegerType)
+        assert isinstance(schema_dict["pipeline_year"], IntegerType)
+        assert isinstance(schema_dict["start_time"],    TimestampType)
 
     def test_pipeline_year_set_correctly(self, spark, bronze_sessions):
         result = transform_sessions(bronze_sessions, pipeline_year=2026)
@@ -161,11 +169,11 @@ class TestBronzeToSilverLaps:
 
     def test_silver_lap_schema_types(self, spark, bronze_laps, bronze_drivers):
         result = transform_laps(bronze_laps, bronze_drivers, min_lap_duration_s=60.0)
-        schema = {f.name: f.dataType for f in result.schema.fields}
-        assert isinstance(schema["lap_number"],     IntegerType)
-        assert isinstance(schema["lap_duration"],   FloatType)
-        assert isinstance(schema["is_pit_out_lap"], BooleanType)
-        assert isinstance(schema["is_valid_lap"],   BooleanType)
+        schema_dict = {f.name: f.dataType for f in result.schema.fields}
+        assert isinstance(schema_dict["lap_number"],     IntegerType)
+        assert isinstance(schema_dict["lap_duration"],   FloatType)
+        assert isinstance(schema_dict["is_pit_out_lap"], BooleanType)
+        assert isinstance(schema_dict["is_valid_lap"],   BooleanType)
 
     def test_processed_at_not_null(self, spark, bronze_laps, bronze_drivers):
         result = transform_laps(bronze_laps, bronze_drivers, min_lap_duration_s=60.0)

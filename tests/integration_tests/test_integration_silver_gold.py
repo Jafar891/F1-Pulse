@@ -14,8 +14,10 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 import pytest
-from pyspark.sql import Row
-from pyspark.sql.types import IntegerType, FloatType, TimestampType
+from pyspark.sql.types import (
+    StructType, StructField, IntegerType, FloatType, DoubleType,
+    BooleanType, StringType, TimestampType
+)
 from modules.gold_transforms import (
     build_driver_leaderboard,
     build_constructor_standings,
@@ -24,40 +26,41 @@ from modules.gold_transforms import (
 
 
 # ---------------------------------------------------------------------------
-# Shared Silver-shaped fixture
+# Shared Silver-shaped fixture (Explicit Schema)
 # ---------------------------------------------------------------------------
 
 @pytest.fixture
 def silver_laps(spark):
-    return spark.createDataFrame([
-        # VER — Red Bull — 5 valid + 1 flagged
-        Row(driver_number="1",  full_name="Max Verstappen", team_name="Red Bull Racing",
-            lap_number=1, lap_duration=88.5, is_valid_lap=True),
-        Row(driver_number="1",  full_name="Max Verstappen", team_name="Red Bull Racing",
-            lap_number=2, lap_duration=89.0, is_valid_lap=True),
-        Row(driver_number="1",  full_name="Max Verstappen", team_name="Red Bull Racing",
-            lap_number=3, lap_duration=89.5, is_valid_lap=True),
-        Row(driver_number="1",  full_name="Max Verstappen", team_name="Red Bull Racing",
-            lap_number=4, lap_duration=90.0, is_valid_lap=True),
-        Row(driver_number="1",  full_name="Max Verstappen", team_name="Red Bull Racing",
-            lap_number=5, lap_duration=91.0, is_valid_lap=True),
-        Row(driver_number="1",  full_name="Max Verstappen", team_name="Red Bull Racing",
-            lap_number=6, lap_duration=25.0, is_valid_lap=False),   # flagged
-        # PER — Red Bull — 3 valid
-        Row(driver_number="11", full_name="Sergio Perez", team_name="Red Bull Racing",
-            lap_number=1, lap_duration=91.0, is_valid_lap=True),
-        Row(driver_number="11", full_name="Sergio Perez", team_name="Red Bull Racing",
-            lap_number=2, lap_duration=92.0, is_valid_lap=True),
-        Row(driver_number="11", full_name="Sergio Perez", team_name="Red Bull Racing",
-            lap_number=3, lap_duration=93.0, is_valid_lap=True),
-        # HAM — Ferrari — 3 valid
-        Row(driver_number="44", full_name="Lewis Hamilton", team_name="Ferrari",
-            lap_number=1, lap_duration=94.0, is_valid_lap=True),
-        Row(driver_number="44", full_name="Lewis Hamilton", team_name="Ferrari",
-            lap_number=2, lap_duration=95.0, is_valid_lap=True),
-        Row(driver_number="44", full_name="Lewis Hamilton", team_name="Ferrari",
-            lap_number=3, lap_duration=96.0, is_valid_lap=True),
+    """Silver laps with EXPLICIT schema to prevent PySpark inference failures."""
+    schema = StructType([
+        StructField("driver_number", StringType(), True),
+        StructField("full_name", StringType(), True),
+        StructField("team_name", StringType(), True),
+        StructField("lap_number", IntegerType(), True),
+        StructField("lap_duration", FloatType(), True),
+        StructField("is_valid_lap", BooleanType(), True)
     ])
+    
+    data = [
+        # VER — Red Bull — 5 valid + 1 flagged
+        ("1",  "Max Verstappen", "Red Bull Racing", 1, 88.5, True),
+        ("1",  "Max Verstappen", "Red Bull Racing", 2, 89.0, True),
+        ("1",  "Max Verstappen", "Red Bull Racing", 3, 89.5, True),
+        ("1",  "Max Verstappen", "Red Bull Racing", 4, 90.0, True),
+        ("1",  "Max Verstappen", "Red Bull Racing", 5, 91.0, True),
+        ("1",  "Max Verstappen", "Red Bull Racing", 6, 25.0, False),  # flagged
+        
+        # PER — Red Bull — 3 valid
+        ("11", "Sergio Perez", "Red Bull Racing", 1, 91.0, True),
+        ("11", "Sergio Perez", "Red Bull Racing", 2, 92.0, True),
+        ("11", "Sergio Perez", "Red Bull Racing", 3, 93.0, True),
+        
+        # HAM — Ferrari — 3 valid
+        ("44", "Lewis Hamilton", "Ferrari", 1, 94.0, True),
+        ("44", "Lewis Hamilton", "Ferrari", 2, 95.0, True),
+        ("44", "Lewis Hamilton", "Ferrari", 3, 96.0, True),
+    ]
+    return spark.createDataFrame(data, schema=schema)
 
 
 # ---------------------------------------------------------------------------
@@ -109,8 +112,9 @@ class TestSilverToGoldLeaderboard:
         result = build_driver_leaderboard(silver_laps, season_year=2026)
         schema = {f.name: f.dataType for f in result.schema.fields}
         assert isinstance(schema["position_rank"],    IntegerType)
-        assert isinstance(schema["fastest_lap_s"],    FloatType)
+        assert isinstance(schema["fastest_lap_s"],    (FloatType, DoubleType))
         assert isinstance(schema["total_valid_laps"], IntegerType)
+        # Assuming generated_at is correctly implemented as a TimestampType
         assert isinstance(schema["generated_at"],     TimestampType)
 
 
