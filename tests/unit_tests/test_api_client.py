@@ -1,24 +1,11 @@
 # =============================================================================
 # F1-Pulse | Unit Tests — api_client.py
-# File:     tests/test_api_client.py
+# File:     tests/unit_tests/test_api_client.py
 # Author:   Jafar891
 # Updated:  2026
-#
-# Tests for fetch_with_retry:
-#   - Successful response
-#   - Retry on timeout then success
-#   - 4xx short-circuit (no retry)
-#   - All retries exhausted
-#   - Non-list JSON response
-#   - Generic RequestException retry
 # =============================================================================
 
-import sys
-import os
-
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-if project_root not in sys.path:
-    sys.path.insert(0, project_root)
+import path_setup  # noqa: F401  — inserts project root into sys.path
 
 import pytest
 import requests
@@ -85,10 +72,7 @@ def test_fetch_retries_on_timeout_then_succeeds():
 
 
 def test_fetch_exhausts_all_retries_on_timeout(caplog):
-    with mock.patch(
-        "requests.get",
-        side_effect=requests.exceptions.Timeout
-    ):
+    with mock.patch("requests.get", side_effect=requests.exceptions.Timeout):
         with caplog.at_level("ERROR"):
             result = fetch_with_retry("http://fake.url", max_retries=3)
 
@@ -131,8 +115,7 @@ def test_fetch_short_circuits_on_client_error(status_code, caplog):
             result = fetch_with_retry("http://fake.url", max_retries=3)
 
     assert result is None
-    # Should only have attempted once — short-circuit means no retries
-    assert mock_get.call_count == 1
+    assert mock_get.call_count == 1   # short-circuit: attempted exactly once
 
 
 # ---------------------------------------------------------------------------

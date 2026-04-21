@@ -1,21 +1,11 @@
 # =============================================================================
 # F1-Pulse | Unit Tests — gold_helpers.py
-# File:     tests/test_gold_helpers.py
+# File:     tests/unit_tests/test_gold_helpers.py
 # Author:   Jafar891
 # Updated:  2026
-#
-# Tests for:
-#   read_silver         — success, empty table ValueError, read failure
-#   write_gold          — success, write failure
-#   log_validity_summary — valid/flagged counts emitted correctly
 # =============================================================================
 
-import sys
-import os
-
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-if project_root not in sys.path:
-    sys.path.insert(0, project_root)
+import path_setup  # noqa: F401  — inserts project root into sys.path
 
 import pytest
 from unittest import mock
@@ -62,7 +52,6 @@ def test_read_silver_returns_dataframe(mock_spark):
 
 
 def test_read_silver_raises_value_error_on_empty_table(mock_spark):
-    """Gold cannot aggregate over zero rows — must raise, not warn."""
     spark, df = mock_spark
     df.count.return_value = 0
 
@@ -126,15 +115,12 @@ def test_write_gold_raises_runtime_error_on_failure(caplog):
 # ---------------------------------------------------------------------------
 
 def test_log_validity_summary_emits_valid_and_flagged_counts(caplog):
-    """Uses a real Spark DataFrame via the spark fixture."""
     df = mock.MagicMock()
 
-    # Simulate two filter calls returning different counts
     valid_df   = mock.MagicMock()
     flagged_df = mock.MagicMock()
     valid_df.count.return_value   = 850
     flagged_df.count.return_value = 150
-
     df.filter.side_effect = [valid_df, flagged_df]
 
     with caplog.at_level("INFO"):

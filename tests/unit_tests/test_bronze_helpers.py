@@ -1,20 +1,11 @@
 # =============================================================================
 # F1-Pulse | Unit Tests — bronze_helpers.py
-# File:     tests/test_bronze_helpers.py
+# File:     tests/unit_tests/test_bronze_helpers.py
 # Author:   Jafar891
 # Updated:  2026
-#
-# Tests for write_bronze:
-#   - Successful write logs correct table name and row count
-#   - Write failure raises RuntimeError and logs error
 # =============================================================================
 
-import sys
-import os
-
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-if project_root not in sys.path:
-    sys.path.insert(0, project_root)
+import path_setup  # noqa: F401  — inserts project root into sys.path
 
 import pytest
 from unittest import mock
@@ -31,7 +22,6 @@ def mock_df():
     df = mock.MagicMock()
     df.count.return_value = 42
 
-    # Fluent writer chain: df.write.format().mode().option().saveAsTable()
     writer = mock.MagicMock()
     writer.format.return_value = writer
     writer.mode.return_value = writer

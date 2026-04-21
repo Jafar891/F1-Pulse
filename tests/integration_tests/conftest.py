@@ -1,18 +1,13 @@
 # =============================================================================
-# F1-Pulse | Test Configuration
-# File:     tests/unit_tests/conftest.py
+# F1-Pulse | Integration Test Configuration
+# File:     tests/integration_tests/conftest.py
 # Author:   Jafar891
 # Updated:  2026
-#
-# On Databricks Serverless, tests must be run via pytest.main() in a notebook
-# Python cell — NOT via %sh. The notebook cell has access to the active Spark
-# Connect session; %sh subprocesses do not.
 # =============================================================================
 
 import sys
 import os
 
-# tests/unit_tests/ -> tests/ -> project root (two levels up)
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
@@ -23,12 +18,6 @@ from pyspark.sql import SparkSession
 
 @pytest.fixture(scope="session")
 def spark():
-    """
-    Returns the active SparkSession from the notebook kernel.
-    When tests are run via pytest.main() in a notebook cell, the session
-    is already initialised by Databricks Serverless and getActiveSession()
-    returns it directly.
-    """
     session = SparkSession.getActiveSession()
     if session is None:
         raise RuntimeError(

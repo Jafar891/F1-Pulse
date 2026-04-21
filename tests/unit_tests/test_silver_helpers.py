@@ -1,22 +1,11 @@
 # =============================================================================
 # F1-Pulse | Unit Tests — silver_helpers.py
-# File:     tests/test_silver_helpers.py
+# File:     tests/unit_tests/test_silver_helpers.py
 # Author:   Jafar891
 # Updated:  2026
-#
-# Tests for:
-#   read_bronze  — success, read failure, empty table warning
-#   write_silver — success, write failure
-#   assert_columns — passes clean, raises on missing columns
-#   log_quality_check — correct drop % calculation, zero-row edge case
 # =============================================================================
 
-import sys
-import os
-
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-if project_root not in sys.path:
-    sys.path.insert(0, project_root)
+import path_setup  # noqa: F401  — inserts project root into sys.path
 
 import pytest
 from unittest import mock
@@ -43,7 +32,6 @@ def mock_spark():
 
 @pytest.fixture
 def mock_writer_df():
-    """DataFrame mock with a fluent write chain."""
     df = mock.MagicMock()
     df.count.return_value = 50
 
@@ -129,8 +117,6 @@ def test_write_silver_raises_on_failure(caplog):
 def test_assert_columns_passes_when_all_present():
     df = mock.MagicMock()
     df.columns = ["driver_number", "lap_duration", "is_pit_out_lap"]
-
-    # Should not raise
     assert_columns(df, ["driver_number", "lap_duration"], "test_table")
 
 
@@ -172,7 +158,7 @@ def test_log_quality_check_correct_percentage(caplog):
 
     assert "1,000" in caplog.text
     assert "800" in caplog.text
-    assert "200" in caplog.text   # dropped
+    assert "200" in caplog.text
     assert "20.0%" in caplog.text
 
 

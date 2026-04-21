@@ -1,21 +1,15 @@
 # =============================================================================
 # F1-Pulse | Integration Tests — Bronze → Silver
-# File:     tests/test_integration_bronze_silver.py
+# File:     tests/integration_tests/test_integration_bronze_silver.py
 # Author:   Jafar891
 # Updated:  2026
-#
-# Validates that Bronze-shaped data flows cleanly through Silver transforms.
-# Simulates what the real pipeline does without any Delta I/O:
-#   - Bronze sessions payload → transform_sessions → assert Silver contract
-#   - Bronze laps + drivers   → transform_laps    → assert Silver contract
-#
-# Uses a real local SparkSession (via conftest.py).
 # =============================================================================
 
 import sys
 import os
 
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+# tests/integration_tests/ -> tests/ -> project root (two levels up)
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
@@ -31,10 +25,6 @@ from modules.silver_transforms import transform_sessions, transform_laps
 
 @pytest.fixture
 def bronze_sessions(spark):
-    """
-    Realistic Bronze sessions payload — includes noise rows (FP1, Sprint)
-    that Silver must filter out, plus whitespace and mixed-case types.
-    """
     return spark.createDataFrame([
         Row(
             session_key=9158, session_name="Abu Dhabi Grand Prix",
@@ -69,32 +59,25 @@ def bronze_sessions(spark):
 
 @pytest.fixture
 def bronze_laps(spark):
-    """
-    Realistic Bronze laps payload — includes pit-out laps, anomalous durations,
-    null lap times, and a driver not in the drivers table (no match).
-    """
     return spark.createDataFrame([
-        Row(driver_number="1",  lap_number=1,  lap_duration=88.512, is_pit_out_lap=False),
-        Row(driver_number="1",  lap_number=2,  lap_duration=89.034, is_pit_out_lap=False),
-        Row(driver_number="1",  lap_number=3,  lap_duration=None,   is_pit_out_lap=False),
-        Row(driver_number="1",  lap_number=4,  lap_duration=88.900, is_pit_out_lap=True),
-        Row(driver_number="1",  lap_number=5,  lap_duration=25.001, is_pit_out_lap=False),
-        Row(driver_number="44", lap_number=1,  lap_duration=91.200, is_pit_out_lap=False),
-        Row(driver_number="44", lap_number=2,  lap_duration=90.800, is_pit_out_lap=False),
-        Row(driver_number="99", lap_number=1,  lap_duration=88.000, is_pit_out_lap=False),
+        Row(driver_number="1",  lap_number=1, lap_duration=88.512, is_pit_out_lap=False),
+        Row(driver_number="1",  lap_number=2, lap_duration=89.034, is_pit_out_lap=False),
+        Row(driver_number="1",  lap_number=3, lap_duration=None,   is_pit_out_lap=False),
+        Row(driver_number="1",  lap_number=4, lap_duration=88.900, is_pit_out_lap=True),
+        Row(driver_number="1",  lap_number=5, lap_duration=25.001, is_pit_out_lap=False),
+        Row(driver_number="44", lap_number=1, lap_duration=91.200, is_pit_out_lap=False),
+        Row(driver_number="44", lap_number=2, lap_duration=90.800, is_pit_out_lap=False),
+        Row(driver_number="99", lap_number=1, lap_duration=88.000, is_pit_out_lap=False),
     ])
 
 
 @pytest.fixture
 def bronze_drivers(spark):
-    """
-    Realistic Bronze drivers payload — includes a duplicate row to validate dedup.
-    """
     return spark.createDataFrame([
         Row(driver_number="1",  full_name="Max Verstappen", team_name="Red Bull Racing",
             country_code="NLD", headshot_url="http://img/ver"),
         Row(driver_number="1",  full_name="Max Verstappen", team_name="Red Bull Racing",
-            country_code="NLD", headshot_url="http://img/ver"),   # duplicate
+            country_code="NLD", headshot_url="http://img/ver"),   # intentional duplicate
         Row(driver_number="44", full_name="Lewis Hamilton", team_name="Ferrari",
             country_code="GBR", headshot_url="http://img/ham"),
     ])
@@ -113,12 +96,11 @@ class TestBronzeToSilverSessions:
 
     def test_practice_rows_excluded(self, spark, bronze_sessions):
         result = transform_sessions(bronze_sessions, pipeline_year=2026)
-        assert result.count() == 2   # Race + Qualifying only
+        assert result.count() == 2
 
     def test_null_session_key_excluded(self, spark, bronze_sessions):
         result = transform_sessions(bronze_sessions, pipeline_year=2026)
-        nulls = result.filter(result.session_id.isNull()).count()
-        assert nulls == 0
+        assert result.filter(result.session_id.isNull()).count() == 0
 
     def test_country_name_whitespace_stripped(self, spark, bronze_sessions):
         result = transform_sessions(bronze_sessions, pipeline_year=2026)
@@ -139,8 +121,7 @@ class TestBronzeToSilverSessions:
 
     def test_processed_at_not_null(self, spark, bronze_sessions):
         result = transform_sessions(bronze_sessions, pipeline_year=2026)
-        nulls = result.filter(result.processed_at.isNull()).count()
-        assert nulls == 0
+        assert result.filter(result.processed_at.isNull()).count() == 0
 
 
 # ---------------------------------------------------------------------------
@@ -149,30 +130,22 @@ class TestBronzeToSilverSessions:
 
 class TestBronzeToSilverLaps:
 
-    def test_row_count_excludes_unmatched_driver(
-        self, spark, bronze_laps, bronze_drivers
-    ):
-        """Driver 99 has no entry in drivers — inner join drops their laps."""
+    def test_unmatched_driver_excluded(self, spark, bronze_laps, bronze_drivers):
         result = transform_laps(bronze_laps, bronze_drivers, min_lap_duration_s=60.0)
         drivers_present = {r["driver_number"] for r in result.collect()}
         assert "99" not in drivers_present
 
     def test_total_rows_correct(self, spark, bronze_laps, bronze_drivers):
-        # 5 VER laps + 2 HAM laps = 7 (driver 99 excluded)
         result = transform_laps(bronze_laps, bronze_drivers, min_lap_duration_s=60.0)
-        assert result.count() == 7
+        assert result.count() == 7   # 5 VER + 2 HAM (driver 99 excluded)
 
     def test_valid_lap_count_correct(self, spark, bronze_laps, bronze_drivers):
-        # VER valid: laps 1 & 2 (lap 3=null, lap 4=pit-out, lap 5=too short)
-        # HAM valid: laps 1 & 2
         result = transform_laps(bronze_laps, bronze_drivers, min_lap_duration_s=60.0)
-        valid = result.filter(result.is_valid_lap == True).count()
-        assert valid == 4
+        assert result.filter(result.is_valid_lap == True).count() == 4
 
     def test_flagged_lap_count_correct(self, spark, bronze_laps, bronze_drivers):
         result = transform_laps(bronze_laps, bronze_drivers, min_lap_duration_s=60.0)
-        flagged = result.filter(result.is_valid_lap == False).count()
-        assert flagged == 3   # null + pit-out + too short
+        assert result.filter(result.is_valid_lap == False).count() == 3
 
     def test_driver_enrichment_correct(self, spark, bronze_laps, bronze_drivers):
         result = transform_laps(bronze_laps, bronze_drivers, min_lap_duration_s=60.0)
@@ -183,20 +156,17 @@ class TestBronzeToSilverLaps:
     def test_duplicate_drivers_do_not_multiply_laps(
         self, spark, bronze_laps, bronze_drivers
     ):
-        """Bronze driver 1 has a duplicate row — dedup must prevent lap fan-out."""
         result = transform_laps(bronze_laps, bronze_drivers, min_lap_duration_s=60.0)
-        ver_laps = result.filter(result.driver_number == "1").count()
-        assert ver_laps == 5   # exactly 5, not 10
+        assert result.filter(result.driver_number == "1").count() == 5
 
     def test_silver_lap_schema_types(self, spark, bronze_laps, bronze_drivers):
         result = transform_laps(bronze_laps, bronze_drivers, min_lap_duration_s=60.0)
         schema = {f.name: f.dataType for f in result.schema.fields}
-        assert isinstance(schema["lap_number"],    IntegerType)
-        assert isinstance(schema["lap_duration"],  FloatType)
+        assert isinstance(schema["lap_number"],     IntegerType)
+        assert isinstance(schema["lap_duration"],   FloatType)
         assert isinstance(schema["is_pit_out_lap"], BooleanType)
-        assert isinstance(schema["is_valid_lap"],  BooleanType)
+        assert isinstance(schema["is_valid_lap"],   BooleanType)
 
     def test_processed_at_not_null(self, spark, bronze_laps, bronze_drivers):
         result = transform_laps(bronze_laps, bronze_drivers, min_lap_duration_s=60.0)
-        nulls = result.filter(result.processed_at.isNull()).count()
-        assert nulls == 0
+        assert result.filter(result.processed_at.isNull()).count() == 0

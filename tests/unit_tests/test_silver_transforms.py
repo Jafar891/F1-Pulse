@@ -1,24 +1,11 @@
 # =============================================================================
 # F1-Pulse | Unit Tests — silver_transforms.py
-# File:     tests/test_silver_transforms.py
+# File:     tests/unit_tests/test_silver_transforms.py
 # Author:   Jafar891
 # Updated:  2026
-#
-# Tests for:
-#   transform_sessions — column selection, type casting, filtering,
-#                        deduplication, schema drift guard
-#   transform_laps     — driver join, type casting, is_valid_lap flag logic,
-#                        pit-out exclusion, schema drift guard
-#
-# Uses a real local SparkSession (via conftest.py) — no Delta writes.
 # =============================================================================
 
-import sys
-import os
-
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-if project_root not in sys.path:
-    sys.path.insert(0, project_root)
+import path_setup  # noqa: F401  — inserts project root into sys.path
 
 import pytest
 from pyspark.sql import Row
@@ -39,14 +26,14 @@ class TestTransformSessions:
                 session_type="Race", location="Yas Marina",
                 country_name=" UAE ", date_start="2026-11-23T13:00:00",
                 date_end="2026-11-23T15:00:00", year=2026,
-                ingested_at=None, source_url="http://fake"
+                ingested_at="2026-01-01T00:00:00", source_url="http://fake"
             ),
             Row(
                 session_key=2, session_name="Abu Dhabi Qualifying",
                 session_type="Qualifying", location="Yas Marina",
                 country_name="UAE", date_start="2026-11-22T13:00:00",
                 date_end="2026-11-22T14:00:00", year=2026,
-                ingested_at=None, source_url="http://fake"
+                ingested_at="2026-01-01T00:00:00", source_url="http://fake"
             ),
         ])
 
@@ -65,13 +52,13 @@ class TestTransformSessions:
                 session_key=10, session_name="FP1", session_type="Practice 1",
                 location="Monaco", country_name="Monaco",
                 date_start="2026-05-22T10:00:00", date_end="2026-05-22T11:00:00",
-                year=2026, ingested_at=None, source_url="http://fake"
+                year=2026, ingested_at="2026-01-01T00:00:00", source_url="http://fake"
             ),
             Row(
                 session_key=11, session_name="Race", session_type="Race",
                 location="Monaco", country_name="Monaco",
                 date_start="2026-05-24T13:00:00", date_end="2026-05-24T15:00:00",
-                year=2026, ingested_at=None, source_url="http://fake"
+                year=2026, ingested_at="2026-01-01T00:00:00", source_url="http://fake"
             ),
         ])
         result = transform_sessions(df, pipeline_year=2026)
@@ -89,7 +76,7 @@ class TestTransformSessions:
                 session_key=20, session_name="Race", session_type="race",
                 location="Spa", country_name="Belgium",
                 date_start="2026-07-30T13:00:00", date_end="2026-07-30T15:00:00",
-                year=2026, ingested_at=None, source_url="http://fake"
+                year=2026, ingested_at="2026-01-01T00:00:00", source_url="http://fake"
             ),
         ])
         result = transform_sessions(df, pipeline_year=2026)
@@ -101,13 +88,13 @@ class TestTransformSessions:
                 session_key=99, session_name="Race", session_type="Race",
                 location="Monza", country_name="Italy",
                 date_start="2026-09-06T13:00:00", date_end="2026-09-06T15:00:00",
-                year=2026, ingested_at=None, source_url="http://fake"
+                year=2026, ingested_at="2026-01-01T00:00:00", source_url="http://fake"
             ),
             Row(
                 session_key=99, session_name="Race duplicate", session_type="Race",
                 location="Monza", country_name="Italy",
                 date_start="2026-09-06T13:00:00", date_end="2026-09-06T15:00:00",
-                year=2026, ingested_at=None, source_url="http://fake"
+                year=2026, ingested_at="2026-01-01T00:00:00", source_url="http://fake"
             ),
         ])
         result = transform_sessions(df, pipeline_year=2026)
@@ -119,15 +106,23 @@ class TestTransformSessions:
 
     def test_filters_null_session_key(self, spark):
         df = spark.createDataFrame([
+            # Bad row with null key
             Row(
                 session_key=None, session_name="Race", session_type="Race",
                 location="Spa", country_name="Belgium",
                 date_start="2026-07-30T13:00:00", date_end="2026-07-30T15:00:00",
-                year=2026, ingested_at=None, source_url="http://fake"
+                year=2026, ingested_at="2026-01-01T00:00:00", source_url="http://fake"
             ),
+            # Valid row added so Spark knows session_key is an integer!
+            Row(
+                session_key=100, session_name="Valid", session_type="Race",
+                location="Spa", country_name="Belgium",
+                date_start="2026-07-30T13:00:00", date_end="2026-07-30T15:00:00",
+                year=2026, ingested_at="2026-01-01T00:00:00", source_url="http://fake"
+            )
         ])
         result = transform_sessions(df, pipeline_year=2026)
-        assert result.count() == 0
+        assert result.count() == 1  # 1 valid row left
 
     def test_schema_drift_raises_value_error(self, spark):
         df = spark.createDataFrame([Row(session_key=1, session_name="x")])
@@ -144,12 +139,12 @@ class TestTransformLaps:
     @pytest.fixture
     def laps_df(self, spark):
         return spark.createDataFrame([
-            Row(driver_number="1",  lap_number=1,  lap_duration=90.5,  is_pit_out_lap=False),
-            Row(driver_number="1",  lap_number=2,  lap_duration=91.2,  is_pit_out_lap=False),
-            Row(driver_number="11", lap_number=1,  lap_duration=89.9,  is_pit_out_lap=False),
-            Row(driver_number="11", lap_number=2,  lap_duration=None,  is_pit_out_lap=False),
-            Row(driver_number="1",  lap_number=3,  lap_duration=30.0,  is_pit_out_lap=False),
-            Row(driver_number="1",  lap_number=4,  lap_duration=92.0,  is_pit_out_lap=True),
+            Row(driver_number="1",  lap_number=1, lap_duration=90.5,  is_pit_out_lap=False),
+            Row(driver_number="1",  lap_number=2, lap_duration=91.2,  is_pit_out_lap=False),
+            Row(driver_number="11", lap_number=1, lap_duration=89.9,  is_pit_out_lap=False),
+            Row(driver_number="11", lap_number=2, lap_duration=None,  is_pit_out_lap=False),
+            Row(driver_number="1",  lap_number=3, lap_duration=30.0,  is_pit_out_lap=False),
+            Row(driver_number="1",  lap_number=4, lap_duration=92.0,  is_pit_out_lap=True),
         ])
 
     @pytest.fixture
@@ -205,24 +200,11 @@ class TestTransformLaps:
         assert row["team_name"] == "Red Bull"
 
     def test_unmatched_driver_excluded_by_inner_join(self, spark, drivers_df):
-        """Laps with no matching driver should be dropped (inner join)."""
         laps = spark.createDataFrame([
             Row(driver_number="99", lap_number=1, lap_duration=90.0, is_pit_out_lap=False),
         ])
         result = transform_laps(laps, drivers_df, min_lap_duration_s=60.0)
         assert result.count() == 0
-
-    def test_drivers_deduplicated(self, spark, laps_df, spark_session=None):
-        """Duplicate driver rows should not produce duplicate lap rows."""
-        drivers_with_dupe = spark_session.createDataFrame([
-            Row(driver_number="1", full_name="Max Verstappen", team_name="Red Bull",
-                country_code="NLD", headshot_url="http://img/max"),
-            Row(driver_number="1", full_name="Max Verstappen", team_name="Red Bull",
-                country_code="NLD", headshot_url="http://img/max"),
-        ]) if spark_session else None
-
-        if drivers_with_dupe is None:
-            pytest.skip("Requires spark fixture — run via conftest.")
 
     def test_laps_schema_drift_raises(self, spark, drivers_df):
         bad_laps = spark.createDataFrame([Row(driver_number="1")])
