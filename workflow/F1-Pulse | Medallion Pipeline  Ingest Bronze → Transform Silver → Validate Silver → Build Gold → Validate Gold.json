@@ -1,0 +1,90 @@
+{
+  "name": "F1-Pulse | Medallion Pipeline  Ingest Bronze → Transform Silver → Validate Silver → Build Gold → Validate Gold",
+  "email_notifications": {
+    "no_alert_for_skipped_runs": false
+  },
+  "webhook_notifications": {},
+  "timeout_seconds": 0,
+  "max_concurrent_runs": 1,
+  "tasks": [
+    {
+      "task_key": "Ingest_Bronze",
+      "run_if": "ALL_SUCCESS",
+      "notebook_task": {
+        "notebook_path": "/Workspace/Users/jafar.gahramanov@gmail.com/F1-Pulse/notebooks/01_Bronze_Ingestion",
+        "source": "WORKSPACE"
+      },
+      "timeout_seconds": 0,
+      "email_notifications": {},
+      "webhook_notifications": {}
+    },
+    {
+      "task_key": "Transform_Silver",
+      "depends_on": [
+        {
+          "task_key": "Ingest_Bronze"
+        }
+      ],
+      "run_if": "ALL_SUCCESS",
+      "notebook_task": {
+        "notebook_path": "/Workspace/Users/jafar.gahramanov@gmail.com/F1-Pulse/notebooks/02_Silver_Transformation",
+        "source": "WORKSPACE"
+      },
+      "timeout_seconds": 0,
+      "email_notifications": {},
+      "webhook_notifications": {}
+    },
+    {
+      "task_key": "Validate_Silver",
+      "depends_on": [
+        {
+          "task_key": "Transform_Silver"
+        }
+      ],
+      "run_if": "ALL_SUCCESS",
+      "notebook_task": {
+        "notebook_path": "/Workspace/Users/jafar.gahramanov@gmail.com/F1-Pulse/notebooks/03_Silver_Quality",
+        "source": "WORKSPACE"
+      },
+      "timeout_seconds": 0,
+      "email_notifications": {},
+      "webhook_notifications": {}
+    },
+    {
+      "task_key": "Build_Gold",
+      "depends_on": [
+        {
+          "task_key": "Validate_Silver"
+        }
+      ],
+      "run_if": "ALL_SUCCESS",
+      "notebook_task": {
+        "notebook_path": "/Workspace/Users/jafar.gahramanov@gmail.com/F1-Pulse/notebooks/04_Gold_Analytics",
+        "source": "WORKSPACE"
+      },
+      "timeout_seconds": 0,
+      "email_notifications": {},
+      "webhook_notifications": {}
+    },
+    {
+      "task_key": "Validate_Gold",
+      "depends_on": [
+        {
+          "task_key": "Build_Gold"
+        }
+      ],
+      "run_if": "ALL_SUCCESS",
+      "notebook_task": {
+        "notebook_path": "/Workspace/Users/jafar.gahramanov@gmail.com/F1-Pulse/notebooks/05_Gold_Quality",
+        "source": "WORKSPACE"
+      },
+      "timeout_seconds": 0,
+      "email_notifications": {},
+      "webhook_notifications": {}
+    }
+  ],
+  "queue": {
+    "enabled": true
+  },
+  "performance_target": "PERFORMANCE_OPTIMIZED"
+}

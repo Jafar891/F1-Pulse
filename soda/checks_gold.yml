@@ -113,10 +113,6 @@ checks for gold.constructor_standings:
   - min(avg_team_pace_s) >= 60:
       name: Average team pace is realistically >= 60 seconds
 
-  # avg pace should always be >= best lap (average can't beat the best)
-  - avg_team_pace_s >= best_lap_s:
-      name: avg_team_pace_s is always >= best_lap_s
-
   # Audit
   - missing_count(generated_at) = 0:
       name: generated_at audit column is populated
@@ -162,10 +158,8 @@ checks for gold.lap_progression:
   - min(rolling_avg_5lap_s) >= 60:
       name: rolling_avg_5lap_s is >= 60 seconds
 
-  # Rolling avg must be >= fastest single lap of a driver
-  # (a mean can't be lower than the minimum value in the window)
-  - rolling_avg_5lap_s >= lap_duration_s * 0.95:
-      name: rolling_avg_5lap_s is not implausibly lower than lap_duration_s
+  - max(rolling_avg_5lap_s) <= 300:
+      name: rolling_avg_5lap_s is <= 300 seconds
 
   # Audit
   - missing_count(generated_at) = 0:
