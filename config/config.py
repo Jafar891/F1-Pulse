@@ -7,7 +7,7 @@ SILVER   = "silver"
 GOLD     = "gold"
 
 YEAR              = 2025
-RACE_ROUND        = "Abu Dhabi"
+RACE_ROUND        = "Baku"
 SESSION_TYPE      = "Race"
 
 MAX_RETRIES        = 3

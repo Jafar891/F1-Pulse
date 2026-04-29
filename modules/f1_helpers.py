@@ -15,7 +15,8 @@ from typing import Optional
 
 import pandas as pd
 from pyspark.sql import DataFrame, SparkSession
-from pyspark.sql.functions import current_timestamp, lit
+from pyspark.sql.functions import current_timestamp, lit, col, when
+from pyspark.sql.types import NullType, StringType
 
 from config.config import SESSION_TYPE
 
@@ -63,18 +64,16 @@ def safe_cast_pdf(pdf: pd.DataFrame) -> pd.DataFrame:
     Stringify only object / mixed-type columns so Spark can infer schema
     cleanly — without converting numeric or boolean columns to strings.
 
-    ``None`` values in stringified columns are restored to Python ``None``
-    rather than the literal string ``"None"``.
-
     Args:
         pdf: Raw Pandas DataFrame from ``pd.DataFrame(json_list)``.
 
     Returns:
         Pandas DataFrame with object columns safely cast to str.
     """
-    for col in pdf.columns:
-        if pdf[col].dtype == object:
-            pdf[col] = pdf[col].astype(str).replace("None", None)
+    for c in pdf.columns:
+        if pdf[c].dtype == object:
+            # Do NOT replace with None here, otherwise Spark drops data during inference!
+            pdf[c] = pdf[c].astype(str)
     return pdf
 
 
@@ -85,7 +84,7 @@ def safe_cast_pdf(pdf: pd.DataFrame) -> pd.DataFrame:
 def pdf_to_spark(
     spark: SparkSession,
     data: list,
-    source_url: str,
+    race_location: str,
 ) -> Optional[DataFrame]:
     """
     Convert a JSON list → Pandas → Spark DataFrame.
@@ -95,13 +94,13 @@ def pdf_to_spark(
 
     Audit columns added
     -------------------
-    ingested_at   timestamp   Wall-clock time the row was written to Bronze.
-    source_url    string      API URL the data was fetched from.
+    ingested_at     timestamp   Wall-clock time the row was written to Bronze.
+    race_location   string      Race location of the race this data is for.
 
     Args:
-        spark:      Active SparkSession.
-        data:       Raw JSON list from ``fetch_with_retry``.
-        source_url: The URL that produced this data (written as audit column).
+        spark:         Active SparkSession.
+        data:          Raw JSON list from ``fetch_with_retry``.
+        race_location: Location of the race (written as audit column).
 
     Returns:
         Spark DataFrame with audit columns, or None if ``data`` is empty
@@ -116,9 +115,27 @@ def pdf_to_spark(
         pdf = safe_cast_pdf(pdf)
 
         df = spark.createDataFrame(pdf)
+
+        # 1. Safely convert stringified "None" back to true Spark nulls
+        # ONLY for StringType columns to avoid BIGINT cast errors!
+        for field in df.schema.fields:
+            if isinstance(field.dataType, StringType):
+                c = field.name
+                df = df.withColumn(
+                    c,
+                    when(col(c).isin("None", "nan", "NaN"), lit(None)).otherwise(col(c))
+                )
+
+        # 2. Safety net: If a column was genuinely 100% null, cast it to String
+        # so the Databricks UI doesn't crash on 'NullType'.
+        for field in df.schema.fields:
+            if isinstance(field.dataType, NullType):
+                df = df.withColumn(field.name, col(field.name).cast(StringType()))
+
+        # 3. Add Audit Columns
         df = (
             df.withColumn("ingested_at", current_timestamp())
-              .withColumn("source_url",  lit(source_url))
+              .withColumn("race_location", lit(race_location))
         )
         return df
 

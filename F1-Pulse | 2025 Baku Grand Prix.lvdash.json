@@ -1,0 +1,515 @@
+{
+  "datasets": [
+    {
+      "name": "28bf90ae",
+      "displayName": "KPI: Fastest Driver (Name + Lap Time)",
+      "queryLines": [
+        "SELECT\r\n",
+        "  full_name,\r\n",
+        "  fastest_lap_s\r\n",
+        "FROM f1_project.gold.driver_performance_metrics\r\n",
+        "ORDER BY fastest_lap_s ASC,\r\n",
+        "         full_name ASC\r\n",
+        "LIMIT 1;"
+      ]
+    },
+    {
+      "name": "5e2d7fc3",
+      "displayName": "KPI: Top Constructor by Pace",
+      "queryLines": [
+        "SELECT\r\n",
+        "  team_name,\r\n",
+        "  avg_team_pace_s\r\n",
+        "FROM f1_project.gold.constructor_standings\r\n",
+        "ORDER BY avg_team_pace_s ASC,\r\n",
+        "         team_name ASC\r\n",
+        "LIMIT 1;"
+      ]
+    },
+    {
+      "name": "efc59110",
+      "displayName": "Speed vs. Consistency (Scatter Plot)",
+      "queryLines": [
+        "SELECT\r\n",
+        "  full_name,\r\n",
+        "  team_name,\r\n",
+        "  avg_lap_time_s,\r\n",
+        "  lap_consistency_s\r\n",
+        "FROM f1_project.gold.driver_performance_metrics\r\n",
+        "WHERE avg_lap_time_s IS NOT NULL\r\n",
+        "  AND lap_consistency_s IS NOT NULL\r\n",
+        "ORDER BY avg_lap_time_s ASC;"
+      ]
+    },
+    {
+      "name": "6ceb5f6c",
+      "displayName": "Ultimate Pace Gap (Horizontal Bar Chart)",
+      "queryLines": [
+        "WITH FastestTeam AS (\r\n",
+        "  SELECT MIN(avg_team_pace_s) AS best_overall_pace\r\n",
+        "  FROM f1_project.gold.constructor_standings\r\n",
+        ")\r\n",
+        "\r\n",
+        "SELECT\r\n",
+        "  c.team_name,\r\n",
+        "  c.avg_team_pace_s,\r\n",
+        "  ROUND(c.avg_team_pace_s - f.best_overall_pace, 3) AS pace_delta_s\r\n",
+        "FROM f1_project.gold.constructor_standings c\r\n",
+        "CROSS JOIN FastestTeam f\r\n",
+        "ORDER BY pace_delta_s ASC;"
+      ]
+    },
+    {
+      "name": "f39ca5c1",
+      "displayName": "Race Trace (Line chart)",
+      "queryLines": [
+        "SELECT\r\n",
+        "  lap_number,\r\n",
+        "  full_name,\r\n",
+        "  team_name,\r\n",
+        "  rolling_avg_5lap_s\r\n",
+        "FROM f1_project.gold.lap_progression\r\n",
+        "WHERE rolling_avg_5lap_s IS NOT NULL\r\n",
+        "ORDER BY full_name ASC,\r\n",
+        "         lap_number ASC;"
+      ]
+    }
+  ],
+  "pages": [
+    {
+      "name": "cd0ffd55",
+      "displayName": "F1-Pulse | 2025 Baku Grand Prix",
+      "layout": [
+        {
+          "widget": {
+            "name": "fastest-driver-name-lap-time",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "28bf90ae",
+                  "fields": [
+                    {
+                      "name": "full_name",
+                      "expression": "`full_name`"
+                    },
+                    {
+                      "name": "sum(fastest_lap_s)",
+                      "expression": "SUM(`fastest_lap_s`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "showTitle": true,
+                "title": "Fastest Driver (Name + Lap Time)"
+              },
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "sum(fastest_lap_s)"
+                },
+                "target": {
+                  "fieldName": "full_name"
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 3,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "top-constructor-by-pace",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "5e2d7fc3",
+                  "fields": [
+                    {
+                      "name": "team_name",
+                      "expression": "`team_name`"
+                    },
+                    {
+                      "name": "sum(avg_team_pace_s)",
+                      "expression": "SUM(`avg_team_pace_s`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "showTitle": true,
+                "title": "Top Constructor by Pace"
+              },
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "sum(avg_team_pace_s)"
+                },
+                "target": {
+                  "fieldName": "team_name"
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 3,
+            "y": 0,
+            "width": 3,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "speed-vs-consistency",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "efc59110",
+                  "fields": [
+                    {
+                      "name": "team_name",
+                      "expression": "`team_name`"
+                    },
+                    {
+                      "name": "avg_lap_time_s",
+                      "expression": "`avg_lap_time_s`"
+                    },
+                    {
+                      "name": "lap_consistency_s",
+                      "expression": "`lap_consistency_s`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "frame": {
+                "showTitle": true,
+                "title": "Speed vs. Consistency"
+              },
+              "mark": {
+                "size": 1.5
+              },
+              "widgetType": "scatter",
+              "encodings": {
+                "x": {
+                  "fieldName": "avg_lap_time_s",
+                  "axis": {
+                    "hideGrid": false
+                  },
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "y": {
+                  "fieldName": "lap_consistency_s",
+                  "axis": {
+                    "hideLabels": false,
+                    "hideGrid": true
+                  },
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "color": {
+                  "fieldName": "team_name",
+                  "legend": {
+                    "position": "bottom",
+                    "hide": false,
+                    "hideTitle": true
+                  },
+                  "scale": {
+                    "type": "categorical",
+                    "sort": {
+                      "by": "natural-order"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 2,
+            "width": 6,
+            "height": 5
+          }
+        },
+        {
+          "widget": {
+            "name": "5dfeafe8",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "6ceb5f6c",
+                  "fields": [
+                    {
+                      "name": "team_name",
+                      "expression": "`team_name`"
+                    },
+                    {
+                      "name": "pace_delta_s",
+                      "expression": "`pace_delta_s`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "frame": {
+                "showTitle": true,
+                "title": "Ultimate Pace Gap"
+              },
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "team_name",
+                  "axis": {
+                    "hideLabels": false,
+                    "labelAngle": 90
+                  },
+                  "scale": {
+                    "type": "categorical",
+                    "sort": {
+                      "by": "y"
+                    }
+                  }
+                },
+                "y": {
+                  "fieldName": "pace_delta_s",
+                  "format": {
+                    "type": "number-plain",
+                    "abbreviation": "compact",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 2
+                    }
+                  },
+                  "axis": {
+                    "hideGrid": true
+                  },
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "label": {
+                  "show": true
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 0,
+            "width": 6,
+            "height": 7
+          }
+        },
+        {
+          "widget": {
+            "name": "race-trace",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "f39ca5c1",
+                  "fields": [
+                    {
+                      "name": "full_name",
+                      "expression": "`full_name`"
+                    },
+                    {
+                      "name": "lap_number",
+                      "expression": "`lap_number`"
+                    },
+                    {
+                      "name": "sum(rolling_avg_5lap_s)",
+                      "expression": "SUM(`rolling_avg_5lap_s`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "frame": {
+                "showTitle": true,
+                "title": "Race Trace"
+              },
+              "mark": {
+                "linePatterns": [
+                  "dotted"
+                ],
+                "marker": {
+                  "shape": "circle"
+                }
+              },
+              "widgetType": "line",
+              "encodings": {
+                "x": {
+                  "fieldName": "lap_number",
+                  "axis": {
+                    "hideGrid": true,
+                    "hideLabels": false
+                  },
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "y": {
+                  "fieldName": "sum(rolling_avg_5lap_s)",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "color": {
+                  "fieldName": "full_name",
+                  "legend": {
+                    "hideTitle": true,
+                    "hide": true
+                  },
+                  "scale": {
+                    "type": "categorical",
+                    "sort": {
+                      "by": "natural-order"
+                    }
+                  }
+                },
+                "label": {
+                  "show": false
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 7,
+            "width": 10,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "name-and-team",
+            "queries": [
+              {
+                "name": "dashboards/01f143e24bce173cb6782093b6a49161/datasets/01f143efe92417cfaf6fe518f84e872c_full_name",
+                "query": {
+                  "datasetName": "f39ca5c1",
+                  "fields": [
+                    {
+                      "name": "full_name",
+                      "expression": "`full_name`"
+                    },
+                    {
+                      "name": "full_name_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "showTitle": true,
+                "title": "Name and Team"
+              },
+              "widgetType": "filter-single-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "full_name",
+                    "queryName": "dashboards/01f143e24bce173cb6782093b6a49161/datasets/01f143efe92417cfaf6fe518f84e872c_full_name"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 10,
+            "y": 7,
+            "width": 2,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "e84d38fe",
+            "queries": [
+              {
+                "name": "dashboards/01f143e24bce173cb6782093b6a49161/datasets/01f143efe92417cfaf6fe518f84e872c_team_name",
+                "query": {
+                  "datasetName": "f39ca5c1",
+                  "fields": [
+                    {
+                      "name": "team_name",
+                      "expression": "`team_name`"
+                    },
+                    {
+                      "name": "team_name_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "disallowAll": false,
+              "frame": {
+                "showTitle": false
+              },
+              "widgetType": "filter-single-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "team_name",
+                    "queryName": "dashboards/01f143e24bce173cb6782093b6a49161/datasets/01f143efe92417cfaf6fe518f84e872c_team_name"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 10,
+            "y": 9,
+            "width": 2,
+            "height": 1
+          }
+        }
+      ],
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layoutVersion": "GRID_V1"
+    }
+  ],
+  "uiSettings": {
+    "theme": {
+      "widgetHeaderAlignment": "ALIGNMENT_UNSPECIFIED"
+    },
+    "applyModeEnabled": false
+  }
+}
