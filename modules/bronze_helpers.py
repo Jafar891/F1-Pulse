@@ -30,14 +30,15 @@ def write_bronze(
 
     Args:
         df:            Raw Spark DataFrame from pdf_to_spark.
-        catalog:       Unity Catalog name   (e.g. "f1_pulse").
+        catalog:       Unity Catalog name   (e.g. "f1_catalog").
         bronze_schema: Bronze schema name   (e.g. "bronze").
-        table_name:    Target table name    (e.g. "raw_laps_2026").
+        table_name:    Target table name    (e.g. "raw_laps_2025").
 
     Raises:
         RuntimeError: If the write fails.
     """
     full_table = f"{catalog}.{bronze_schema}.{table_name}"
+    row_count = df.count()
     try:
         (
             df.write
@@ -46,7 +47,7 @@ def write_bronze(
               .option("overwriteSchema", "true")
               .saveAsTable(full_table)
         )
-        log.info(f"  ✅ Written → {full_table}  ({df.count():,} rows)")
+        log.info(f"  ✅ Written → {full_table}  ({row_count:,} rows)")
     except Exception as e:
         log.error(f"  ❌ Failed to write {full_table}: {e}")
         raise RuntimeError(f"Cannot write Bronze table '{full_table}'") from e

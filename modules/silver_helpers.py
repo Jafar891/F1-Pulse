@@ -9,10 +9,8 @@
 # =============================================================================
 
 import logging
-from typing import Optional
 
 from pyspark.sql import DataFrame, SparkSession
-from pyspark.sql.functions import current_timestamp
 
 log = logging.getLogger("f1_pulse.silver")
 
@@ -32,9 +30,9 @@ def read_bronze(
 
     Args:
         spark:         Active SparkSession.
-        catalog:       Unity Catalog name  (e.g. "f1_pulse").
+        catalog:       Unity Catalog name  (e.g. "f1_project").
         bronze_schema: Bronze schema name  (e.g. "bronze").
-        table_name:    Table name          (e.g. "raw_laps_2026").
+        table_name:    Table name          (e.g. "raw_laps_2025").
 
     Returns:
         DataFrame — never None; raises on failure.
@@ -69,7 +67,7 @@ def write_silver(
 
     Args:
         df:            Transformed Spark DataFrame.
-        catalog:       Unity Catalog name  (e.g. "f1_pulse").
+        catalog:       Unity Catalog name  (e.g. "f1_project").
         silver_schema: Silver schema name  (e.g. "silver").
         table_name:    Target table name   (e.g. "enriched_laps").
 
@@ -77,6 +75,7 @@ def write_silver(
         RuntimeError: If the write fails.
     """
     full_table = f"{catalog}.{silver_schema}.{table_name}"
+    row_count = df.count()
     try:
         (
             df.write
@@ -85,8 +84,7 @@ def write_silver(
               .option("overwriteSchema", "true")
               .saveAsTable(full_table)
         )
-        written = df.count()
-        log.info(f"  ✅ Written → {full_table}  ({written:,} rows)")
+        log.info(f"  ✅ Written → {full_table}  ({row_count:,} rows)")
     except Exception as e:
         log.error(f"  ❌ Failed to write {full_table}: {e}")
         raise RuntimeError(f"Cannot write Silver table '{full_table}'") from e
@@ -131,7 +129,7 @@ def log_quality_check(label: str, total: int, kept: int) -> None:
     Emit an INFO log summarising row-level filtering.
 
     Args:
-        label: Human-readable dataset label (e.g. "Laps (total)").
+        label: Human-readable dataset label (e.g. "Laps (valid only)").
         total: Row count before filtering.
         kept:  Row count after filtering.
     """

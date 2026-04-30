@@ -5,6 +5,7 @@
 # Updated:  2026
 #
 # Data quality checks for Gold Delta tables (dashboard-facing).
+# Circuit-specific thresholds are set for Abu Dhabi (Yas Marina).
 # Run with:
 #   soda scan -d f1_pulse_databricks -c soda/configuration.yml soda/checks_gold.yml
 # =============================================================================
@@ -23,14 +24,14 @@ checks for gold.driver_performance_metrics:
       name: At least 10 drivers in the leaderboard (typical F1 grid is 20)
 
   # Rank integrity
-  - missing_count(position_rank) = 0:
-      name: position_rank has no nulls
+  - missing_count(pace_rank) = 0:
+      name: pace_rank has no nulls
 
-  - min(position_rank) = 1:
-      name: Ranking starts at 1
+  - min(pace_rank) = 1:
+      name: pace_rank starts at 1
 
-  - duplicate_count(position_rank) = 0:
-      name: position_rank is unique per driver (dense_rank used correctly)
+  - duplicate_count(pace_rank) = 0:
+      name: pace_rank is unique per driver (dense_rank used correctly)
 
   - duplicate_count(driver_number) = 0:
       name: Each driver appears exactly once
@@ -45,15 +46,15 @@ checks for gold.driver_performance_metrics:
   - missing_count(total_valid_laps) = 0:
       name: total_valid_laps has no nulls
 
-  # Lap time sanity
-  - min(fastest_lap_s) >= 60:
-      name: Fastest lap is realistically >= 60 seconds
+  # Lap time sanity — Abu Dhabi specific
+  - min(fastest_lap_s) >= 80:
+      name: Fastest lap is realistically >= 80 seconds (Abu Dhabi)
 
-  - max(fastest_lap_s) <= 300:
-      name: Fastest lap is realistically <= 300 seconds
+  - max(fastest_lap_s) <= 220:
+      name: Fastest lap is realistically <= 180 seconds (Abu Dhabi)
 
-  - min(avg_lap_time_s) >= 60:
-      name: Average lap time is realistically >= 60 seconds
+  - min(avg_lap_time_s) >= 80:
+      name: Average lap time is realistically >= 80 seconds (Abu Dhabi)
 
   # Consistency metric — std-dev should never be negative
   - min(lap_consistency_s) >= 0:
@@ -84,14 +85,14 @@ checks for gold.constructor_standings:
       name: At least 5 constructors present (typical F1 season has 10)
 
   # Rank integrity
-  - missing_count(constructor_rank) = 0:
-      name: constructor_rank has no nulls
+  - missing_count(team_pace_rank) = 0:
+      name: team_pace_rank has no nulls
 
-  - min(constructor_rank) = 1:
-      name: Constructor ranking starts at 1
+  - min(team_pace_rank) = 1:
+      name: team_pace_rank starts at 1
 
-  - duplicate_count(constructor_rank) = 0:
-      name: constructor_rank is unique per team
+  - duplicate_count(team_pace_rank) = 0:
+      name: team_pace_rank is unique per team
 
   - duplicate_count(team_name) = 0:
       name: Each constructor appears exactly once
@@ -106,16 +107,22 @@ checks for gold.constructor_standings:
   - missing_count(total_valid_laps) = 0:
       name: total_valid_laps has no nulls
 
-  # Lap time sanity
-  - min(best_lap_s) >= 60:
-      name: Best constructor lap is realistically >= 60 seconds
+  # Lap time sanity — Abu Dhabi specific
+  - min(best_lap_s) >= 80:
+      name: Best constructor lap is realistically >= 80 seconds (Abu Dhabi)
 
-  - min(avg_team_pace_s) >= 60:
-      name: Average team pace is realistically >= 60 seconds
+  - min(avg_team_pace_s) >= 80:
+      name: Average team pace is realistically >= 80 seconds (Abu Dhabi)
+
+  - max(avg_team_pace_s) <= 220:
+      name: Average team pace is realistically <= 180 seconds (Abu Dhabi)
 
   # Audit
   - missing_count(generated_at) = 0:
       name: generated_at audit column is populated
+
+  - missing_count(season_year) = 0:
+      name: season_year audit column is populated
 
 
 # ---------------------------------------------------------------------------
@@ -140,26 +147,26 @@ checks for gold.lap_progression:
   - missing_count(rolling_avg_5lap_s) = 0:
       name: rolling_avg_5lap_s has no nulls
 
-  # Lap number sanity
+  # Lap number sanity — Abu Dhabi specific
   - min(lap_number) >= 1:
       name: lap_number starts at 1
 
-  - max(lap_number) <= 100:
-      name: lap_number does not exceed 100
+  - max(lap_number) <= 65:
+      name: lap_number does not exceed Abu Dhabi race distance (58 laps + buffer)
 
-  # Duration sanity — only valid laps reach Gold
-  - min(lap_duration_s) >= 60:
-      name: lap_duration_s is >= 60 seconds (invalid laps excluded)
+  # Duration sanity — Abu Dhabi specific, only valid laps reach Gold
+  - min(lap_duration_s) >= 80:
+      name: lap_duration_s is >= 80 seconds (Abu Dhabi, invalid laps excluded)
 
-  - max(lap_duration_s) <= 300:
-      name: lap_duration_s is <= 300 seconds
+  - max(lap_duration_s) <= 220:
+      name: lap_duration_s is <= 180 seconds (Abu Dhabi)
 
-  # Rolling average sanity
-  - min(rolling_avg_5lap_s) >= 60:
-      name: rolling_avg_5lap_s is >= 60 seconds
+  # Rolling average sanity — Abu Dhabi specific
+  - min(rolling_avg_5lap_s) >= 80:
+      name: rolling_avg_5lap_s is >= 80 seconds (Abu Dhabi)
 
-  - max(rolling_avg_5lap_s) <= 300:
-      name: rolling_avg_5lap_s is <= 300 seconds
+  - max(rolling_avg_5lap_s) <= 220:
+      name: rolling_avg_5lap_s is <= 180 seconds (Abu Dhabi)
 
   # Audit
   - missing_count(generated_at) = 0:

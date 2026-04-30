@@ -11,6 +11,7 @@
 import logging
 
 from pyspark.sql import DataFrame, SparkSession
+from pyspark.sql.functions import col
 
 log = logging.getLogger("f1_pulse.gold")
 
@@ -33,7 +34,7 @@ def read_silver(
 
     Args:
         spark:         Active SparkSession.
-        catalog:       Unity Catalog name   (e.g. "f1_pulse").
+        catalog:       Unity Catalog name   (e.g. "f1_project").
         silver_schema: Silver schema name   (e.g. "silver").
         table_name:    Table name           (e.g. "enriched_laps").
 
@@ -73,7 +74,7 @@ def write_gold(
 
     Args:
         df:          Aggregated Spark DataFrame.
-        catalog:     Unity Catalog name  (e.g. "f1_pulse").
+        catalog:     Unity Catalog name  (e.g. "f1_project").
         gold_schema: Gold schema name    (e.g. "gold").
         table_name:  Target table name   (e.g. "driver_performance_metrics").
 
@@ -81,6 +82,7 @@ def write_gold(
         RuntimeError: If the write fails.
     """
     full_table = f"{catalog}.{gold_schema}.{table_name}"
+    row_count = df.count()
     try:
         (
             df.write
@@ -89,14 +91,14 @@ def write_gold(
               .option("overwriteSchema", "true")
               .saveAsTable(full_table)
         )
-        log.info(f"  ✅ Written → {full_table}  ({df.count():,} rows)")
+        log.info(f"  ✅ Written → {full_table}  ({row_count:,} rows)")
     except Exception as e:
         log.error(f"  ❌ Failed to write {full_table}: {e}")
         raise RuntimeError(f"Cannot write Gold table '{full_table}'") from e
 
 
 # ---------------------------------------------------------------------------
-# Lap-validity summary (used in notebook for a quick diagnostic log)
+# Lap-validity summary
 # ---------------------------------------------------------------------------
 
 def log_validity_summary(silver_laps: DataFrame) -> None:
@@ -106,9 +108,8 @@ def log_validity_summary(silver_laps: DataFrame) -> None:
     Args:
         silver_laps: The enriched_laps Silver DataFrame (must have is_valid_lap).
     """
-    from pyspark.sql.functions import col
-
-    valid   = silver_laps.filter(col("is_valid_lap") == True).count()   # noqa: E712
-    flagged = silver_laps.filter(col("is_valid_lap") == False).count()  # noqa: E712
+    
+    valid   = silver_laps.filter(col("is_valid_lap") == True).count()
+    flagged = silver_laps.filter(col("is_valid_lap") == False).count()
     log.info(f"  ✅ Valid laps                        : {valid:,}")
     log.info(f"  ⚠️  Flagged laps (excluded from Gold) : {flagged:,}")

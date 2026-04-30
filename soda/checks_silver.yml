@@ -89,25 +89,26 @@ checks for silver.enriched_laps:
   - invalid_count(lap_duration) = 0:
       name: lap_duration is within valid numeric range
       filter: is_valid_lap = true
-      valid min: 60
-      valid max: 300
+      valid min: 80
+      valid max: 220
 
   # Valid lap duration range — valid laps only
-  - min(lap_duration) >= 60:
-      name: Valid laps have realistic minimum duration (>= 60s)
+  - min(lap_duration) >= 80:
+      name: Valid laps have realistic minimum duration (>= 80s)
       filter: is_valid_lap = true
 
-  - max(lap_duration) <= 300:
-      name: Valid laps have realistic maximum duration (<= 300s)
+  - max(lap_duration) <= 220:
+      name: Valid laps have realistic maximum duration (<= 180s)
       filter: is_valid_lap = true
 
   # Lap number sanity
   - min(lap_number) >= 1:
       name: lap_number starts at 1 or higher
 
-  - max(lap_number) <= 100:
-      name: lap_number does not exceed 100 (F1 race max)
+  - max(lap_number) <= 65:
+      name: lap_number does not exceed 65 (F1 race max)
 
   # Audit column
   - missing_count(processed_at) = 0:
       name: processed_at audit column is populated
+  

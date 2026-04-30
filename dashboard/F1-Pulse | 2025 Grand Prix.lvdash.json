@@ -15,7 +15,7 @@
     },
     {
       "name": "5e2d7fc3",
-      "displayName": "KPI: Top Constructor by Pace",
+      "displayName": "KPI: Top Team by Pace",
       "queryLines": [
         "SELECT\r\n",
         "  team_name,\r\n",
@@ -78,7 +78,7 @@
   "pages": [
     {
       "name": "cd0ffd55",
-      "displayName": "F1-Pulse | 2025 Baku Grand Prix",
+      "displayName": "F1-Pulse | 2025  Grand Prix",
       "layout": [
         {
           "widget": {
@@ -152,7 +152,7 @@
               "version": 2,
               "frame": {
                 "showTitle": true,
-                "title": "Top Constructor by Pace"
+                "title": "Top Team by Pace"
               },
               "widgetType": "counter",
               "encodings": {
@@ -205,7 +205,8 @@
                 "title": "Speed vs. Consistency"
               },
               "mark": {
-                "size": 1.5
+                "opacity": 0.78,
+                "size": 2.9
               },
               "widgetType": "scatter",
               "encodings": {

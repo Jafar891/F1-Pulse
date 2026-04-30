@@ -5,7 +5,7 @@
 # Updated:  2026
 #
 # Utility functions for Bronze ingestion:
-#   - Session resolution from the OpenF1 sessions payload.
+#   - Circuit-aware session resolution from the OpenF1 sessions payload.
 #   - Pandas schema normalisation before Spark conversion.
 #   - JSON list → Spark DataFrame conversion with audit columns.
 # =============================================================================
@@ -18,7 +18,7 @@ from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql.functions import current_timestamp, lit, col, when
 from pyspark.sql.types import NullType, StringType
 
-from config.config import SESSION_TYPE
+from config.config import SESSION_TYPE, RACE_ROUND
 
 log = logging.getLogger("f1_pulse.helpers")
 
@@ -29,30 +29,37 @@ log = logging.getLogger("f1_pulse.helpers")
 
 def get_latest_race_session(session_data: list) -> Optional[dict]:
     """
-    Safely extract the latest race session from the sessions payload.
+    Extract the race session matching SESSION_TYPE and RACE_ROUND from config.
 
-    Filters by ``session_type == SESSION_TYPE`` (config).
-    Falls back to the last record in the list if no match is found,
+    Filters the sessions payload by both session type and circuit name.
+    Falls back to the latest session by type if no circuit match is found,
     so ingestion can still proceed on unexpected API responses.
 
     Args:
         session_data: Raw list of session dicts from the OpenF1 API.
 
     Returns:
-        The most recent matching session dict, or None if the list is empty.
+        The matching session dict, or None if the list is empty.
     """
+    matched = [
+        s for s in session_data
+        if s.get("session_type") == SESSION_TYPE
+        and s.get("circuit_short_name") == RACE_ROUND
+    ]
+
+    if matched:
+        log.info(f"  ✅ Matched session for circuit='{RACE_ROUND}'")
+        return matched[-1]
+
+    log.warning(
+        f"No session found for circuit='{RACE_ROUND}' — "
+        f"falling back to latest '{SESSION_TYPE}' session."
+    )
     race_sessions = [
         s for s in session_data
         if s.get("session_type") == SESSION_TYPE
     ]
-
-    if race_sessions:
-        return race_sessions[-1]
-
-    log.warning(
-        f"No session_type='{SESSION_TYPE}' found — falling back to last record."
-    )
-    return session_data[-1] if session_data else None
+    return race_sessions[-1] if race_sessions else None
 
 
 # ---------------------------------------------------------------------------
@@ -72,7 +79,7 @@ def safe_cast_pdf(pdf: pd.DataFrame) -> pd.DataFrame:
     """
     for c in pdf.columns:
         if pdf[c].dtype == object:
-            # Do NOT replace with None here, otherwise Spark drops data during inference!
+            # Do not replace with None here — Spark drops data during schema inference
             pdf[c] = pdf[c].astype(str)
     return pdf
 
@@ -95,12 +102,12 @@ def pdf_to_spark(
     Audit columns added
     -------------------
     ingested_at     timestamp   Wall-clock time the row was written to Bronze.
-    race_location   string      Race location of the race this data is for.
+    race_location   string      Circuit location tag written to every row.
 
     Args:
         spark:         Active SparkSession.
         data:          Raw JSON list from ``fetch_with_retry``.
-        race_location: Location of the race (written as audit column).
+        race_location: Circuit location written as an audit column.
 
     Returns:
         Spark DataFrame with audit columns, or None if ``data`` is empty
@@ -116,8 +123,8 @@ def pdf_to_spark(
 
         df = spark.createDataFrame(pdf)
 
-        # 1. Safely convert stringified "None" back to true Spark nulls
-        # ONLY for StringType columns to avoid BIGINT cast errors!
+        # Safely convert stringified "None" back to true Spark nulls
+        # — restricted to StringType columns to avoid BIGINT cast errors
         for field in df.schema.fields:
             if isinstance(field.dataType, StringType):
                 c = field.name
@@ -126,13 +133,13 @@ def pdf_to_spark(
                     when(col(c).isin("None", "nan", "NaN"), lit(None)).otherwise(col(c))
                 )
 
-        # 2. Safety net: If a column was genuinely 100% null, cast it to String
-        # so the Databricks UI doesn't crash on 'NullType'.
+        # Cast any fully-null columns from NullType to StringType
+        # — prevents Databricks UI errors on unresolvable schema
         for field in df.schema.fields:
             if isinstance(field.dataType, NullType):
                 df = df.withColumn(field.name, col(field.name).cast(StringType()))
 
-        # 3. Add Audit Columns
+        # Add audit columns
         df = (
             df.withColumn("ingested_at", current_timestamp())
               .withColumn("race_location", lit(race_location))

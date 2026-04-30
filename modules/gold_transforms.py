@@ -9,13 +9,12 @@
 # in the orchestrating notebook.
 # =============================================================================
 
-
 import logging
 
 from pyspark.sql import DataFrame
 from pyspark.sql.functions import (
     avg, col, count, current_timestamp, dense_rank,
-    lit, min, percentile_approx, round as spark_round, stddev, coalesce
+    lit, min, percentile_approx, round as spark_round, stddev, coalesce,
 )
 from pyspark.sql.types import IntegerType
 from pyspark.sql.window import Window
@@ -24,12 +23,16 @@ log = logging.getLogger("f1_pulse.gold")
 
 
 # ---------------------------------------------------------------------------
-# Shared filter
+# Shared utilities
 # ---------------------------------------------------------------------------
 
 def _valid_laps(laps: DataFrame) -> DataFrame:
-    """Return only rows where is_valid_lap is True."""
-    return laps.filter(col("is_valid_lap") == True)
+    """
+    Return only rows where is_valid_lap is True.
+
+    Internal helper — not intended to be called directly from notebooks.
+    """
+    return laps.filter(col("is_valid_lap"))
 
 
 # ---------------------------------------------------------------------------
@@ -40,9 +43,27 @@ def build_driver_leaderboard(laps: DataFrame, season_year: int) -> DataFrame:
     """
     Aggregated per-driver pace metrics across valid race laps.
 
-    pace_rank           int      Rank by avg pace + consistency (1 = best).
-    """
+    Output columns
+    --------------
+    pace_rank          int     Rank by avg pace + consistency (1 = best).
+    full_name          str     Driver full name.
+    team_name          str     Constructor name.
+    driver_number      str     Driver number.
+    fastest_lap_s      float   Minimum valid lap duration in seconds.
+    avg_lap_time_s     float   Mean valid lap duration in seconds.
+    median_lap_time_s  float   Median valid lap duration in seconds.
+    lap_consistency_s  float   Std-dev of valid lap durations (0 if single lap).
+    total_valid_laps   int     Count of valid laps used in aggregation.
+    generated_at       ts      Row generation timestamp.
+    season_year        int     Season year from config (audit column).
 
+    Args:
+        laps:        Silver enriched_laps DataFrame.
+        season_year: Season year written as an audit column.
+
+    Returns:
+        Aggregated DataFrame ordered by pace_rank.
+    """
     log.info("  Building driver pace metrics …")
 
     agg = (
@@ -59,7 +80,7 @@ def build_driver_leaderboard(laps: DataFrame, season_year: int) -> DataFrame:
 
     rank_window = Window.orderBy(
         col("avg_lap_time_s").asc(),
-        col("lap_consistency_s").asc()
+        col("lap_consistency_s").asc(),
     )
 
     return (
@@ -88,11 +109,25 @@ def build_driver_leaderboard(laps: DataFrame, season_year: int) -> DataFrame:
 
 def build_constructor_standings(laps: DataFrame, season_year: int) -> DataFrame:
     """
-    Team-level pace metrics across both drivers.
+    Team-level pace metrics aggregated across all drivers.
 
-    team_pace_rank      int      Rank by avg team pace (1 = best).
+    Output columns
+    --------------
+    team_pace_rank   int     Rank by avg team pace (1 = best).
+    team_name        str     Constructor name.
+    best_lap_s       float   Fastest individual lap across both drivers.
+    avg_team_pace_s  float   Mean valid lap duration across both drivers.
+    total_valid_laps int     Count of valid laps used in aggregation.
+    generated_at     ts      Row generation timestamp.
+    season_year      int     Season year from config (audit column).
+
+    Args:
+        laps:        Silver enriched_laps DataFrame.
+        season_year: Season year written as an audit column.
+
+    Returns:
+        Aggregated DataFrame ordered by team_pace_rank.
     """
-
     log.info("  Building constructor pace metrics …")
 
     agg = (
@@ -107,7 +142,7 @@ def build_constructor_standings(laps: DataFrame, season_year: int) -> DataFrame:
 
     rank_window = Window.orderBy(
         col("avg_team_pace_s").asc(),
-        col("total_valid_laps").desc()
+        col("total_valid_laps").desc(),
     )
 
     return (
@@ -132,9 +167,26 @@ def build_constructor_standings(laps: DataFrame, season_year: int) -> DataFrame:
 
 def build_lap_progression(laps: DataFrame, season_year: int) -> DataFrame:
     """
-    Lap-level pace evolution with rolling 5-lap average.
-    """
+    Lap-level pace evolution per driver with a rolling 5-lap average.
 
+    Output columns
+    --------------
+    full_name            str    Driver full name.
+    team_name            str    Constructor name.
+    driver_number        str    Driver number.
+    lap_number           int    Lap number within the session.
+    lap_duration_s       float  Valid lap duration in seconds.
+    rolling_avg_5lap_s   float  Rolling mean over the previous 5 laps.
+    generated_at         ts     Row generation timestamp.
+    season_year          int    Season year from config (audit column).
+
+    Args:
+        laps:        Silver enriched_laps DataFrame.
+        season_year: Season year written as an audit column.
+
+    Returns:
+        Lap-level DataFrame ordered by driver and lap number.
+    """
     log.info("  Building lap progression (time-series) …")
 
     lap_window = (

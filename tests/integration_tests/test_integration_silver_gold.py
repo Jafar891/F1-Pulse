@@ -75,15 +75,15 @@ class TestSilverToGoldLeaderboard:
 
     def test_ver_is_rank_1(self, spark, silver_laps):
         result = build_driver_leaderboard(silver_laps, season_year=2026)
-        assert result.filter(result.position_rank == 1).first()["driver_number"] == "1"
+        assert result.filter(result.pace_rank == 1).first()["driver_number"] == "1"
 
     def test_ham_is_rank_3(self, spark, silver_laps):
         result = build_driver_leaderboard(silver_laps, season_year=2026)
-        assert result.filter(result.position_rank == 3).first()["driver_number"] == "44"
+        assert result.filter(result.pace_rank == 3).first()["driver_number"] == "44"
 
     def test_ranks_are_unique(self, spark, silver_laps):
         result = build_driver_leaderboard(silver_laps, season_year=2026)
-        ranks = [r["position_rank"] for r in result.collect()]
+        ranks = [r["pace_rank"] for r in result.collect()]
         assert len(ranks) == len(set(ranks))
 
     def test_flagged_lap_excluded_from_fastest(self, spark, silver_laps):
@@ -111,7 +111,7 @@ class TestSilverToGoldLeaderboard:
     def test_schema_types(self, spark, silver_laps):
         result = build_driver_leaderboard(silver_laps, season_year=2026)
         schema = {f.name: f.dataType for f in result.schema.fields}
-        assert isinstance(schema["position_rank"],    IntegerType)
+        assert isinstance(schema["pace_rank"],    IntegerType)
         assert isinstance(schema["fastest_lap_s"],    (FloatType, DoubleType))
         assert isinstance(schema["total_valid_laps"], IntegerType)
         # Assuming generated_at is correctly implemented as a TimestampType
@@ -130,11 +130,11 @@ class TestSilverToGoldConstructors:
 
     def test_red_bull_is_rank_1(self, spark, silver_laps):
         result = build_constructor_standings(silver_laps, season_year=2026)
-        assert result.filter(result.constructor_rank == 1).first()["team_name"] == "Red Bull Racing"
+        assert result.filter(result.team_pace_rank == 1).first()["team_name"] == "Red Bull Racing"
 
     def test_ferrari_is_rank_2(self, spark, silver_laps):
         result = build_constructor_standings(silver_laps, season_year=2026)
-        assert result.filter(result.constructor_rank == 2).first()["team_name"] == "Ferrari"
+        assert result.filter(result.team_pace_rank == 2).first()["team_name"] == "Ferrari"
 
     def test_red_bull_best_lap_excludes_flagged(self, spark, silver_laps):
         result = build_constructor_standings(silver_laps, season_year=2026)

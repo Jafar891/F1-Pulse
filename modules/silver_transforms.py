@@ -108,8 +108,9 @@ def _clean_drivers(bronze_drivers: DataFrame) -> DataFrame:
     """
     Deduplicate and normalise the drivers lookup table.
 
-    Keeps one record per ``driver_number``; stringifies relevant columns
-    and trims whitespace introduced by the Bronze safe_cast_pdf step.
+    Internal helper — not intended to be called directly from notebooks.
+    Keeps one record per ``driver_number``; trims whitespace introduced
+    by the Bronze safe_cast_pdf step.
 
     Args:
         bronze_drivers: Raw DataFrame from ``bronze.raw_drivers_<year>``.
@@ -146,7 +147,7 @@ def transform_laps(
     2. Deduplicate and normalise the drivers lookup.
     3. Cast lap columns to correct types (undoing Bronze object→str blanket cast).
     4. Inner-join laps ↔ drivers on ``driver_number``.
-    5. Attach ``is_valid_lap`` flag — bad rows are **kept** for Gold to decide.
+    5. Attach ``is_valid_lap`` flag — bad rows are kept for traceability.
     6. Select Silver contract columns.
 
     Quality flag logic (``is_valid_lap = False`` when)
@@ -182,7 +183,7 @@ def transform_laps(
 
     enriched = enriched.withColumn(
         "is_valid_lap",
-        when(col("is_pit_out_lap") == True, False)           # noqa: E712
+        when(col("is_pit_out_lap") == True, False)
         .when(col("lap_duration").isNull(), False)
         .when(col("lap_duration") < min_lap_duration_s, False)
         .otherwise(True),
@@ -201,8 +202,11 @@ def transform_laps(
         current_timestamp().alias("processed_at"),
     )
 
+    # Derive valid/flagged counts from a single cached result
+    
     kept  = result.count()
-    valid = result.filter(col("is_valid_lap") == True).count()   # noqa: E712
+    valid = result.filter(col("is_valid_lap") == True).count()
+
     log_quality_check("Laps (total)", total_laps, kept)
     log.info(f"  ✅ Valid laps   (is_valid_lap=True) : {valid:,}")
     log.info(f"  ⚠️  Flagged laps (is_valid_lap=False): {kept - valid:,}")

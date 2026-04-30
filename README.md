@@ -4,10 +4,11 @@
 ---
 
 ## 📋 Project Overview
+F1-Pulse is a production-grade data engineering pipeline that ingests, transforms, and analyzes Formula 1 racing data using the Medallion Architecture (Bronze → Silver → Gold).
 
-F1-Pulse is a production-grade data engineering pipeline that ingests, transforms, and analyzes Formula 1 racing data using the **Medallion Architecture (Bronze → Silver → Gold)**.
+The pipeline pulls raw JSON responses from the OpenF1 REST API, processes them through three Delta Lake layers with automated data quality gates, and visualizes actionable driver and constructor insights in a Databricks SQL Dashboard. It is currently configured to process the 2025 Azerbaijan Grand Prix (Baku), but can be easily adapted to any race via configuration parameters.
 
-The pipeline pulls raw JSON responses from the **OpenF1 REST API**, processes them through three Delta Lake layers with automated data quality gates at each layer boundary, and delivers actionable driver and constructor performance insights. It is currently configured to process the **2025 Abu Dhabi Grand Prix**, showcasing retry-safe API ingestion, schema drift detection, window function analytics, multi-table Gold outputs, and a fully orchestrated Databricks Workflow.
+⚠️ Note: All results are derived from OpenF1 telemetry data and represent analytical performance metrics, not official FIA race classifications.
 
 ---
 
@@ -24,11 +25,13 @@ The pipeline pulls raw JSON responses from the **OpenF1 REST API**, processes th
 | Testing | pytest (unit + integration tests across all modules) |
 | Version Control | GitHub (integrated with Databricks Repos) |
 | Data Source | OpenF1 REST API (free, real-time F1 telemetry) |
+| **BI / Visualization**| Databricks SQL | Interactive dashboard powered by Gold tables |
 
 ---
 
 
 ## 🏗️ Architecture
+![F1-Pulse Databricks Dashboard](images/catalog.png)
 ```
 OpenF1 REST API
       │
@@ -88,6 +91,8 @@ The pipeline runs as a 5-task Databricks job with linear dependencies.
 A failed DQ gate raises an exception and halts all downstream tasks.
 
 Ingest Bronze → Transform Silver → Validate Silver → Build Gold → Validate Gold
+
+![F1-Pulse Databricks Dashboard](images/workflow.png)
 
 | Task | Notebook | Description |
 |---|---|---|
@@ -170,28 +175,43 @@ as the test suite requires a live Spark session and access to the workspace file
 Run `00_Setup_Catalog` and at least one full pipeline pass before executing integration tests,
 as they depend on the Silver and Gold tables existing in the metastore.
 
-## 📈 Sample Results — 2025 Abu Dhabi Grand Prix
+## 📈 Sample Results — 2025 Baku Grand Prix
 
 ### Driver Leaderboard
+*Note: Pace Rank is calculated by taking into account Average Pace and Lap Consistency.*
 
-| Rank | Driver | Team | Fastest Lap (s) | Avg Pace (s) | Consistency (σ) |
-|---|---|---|---|---|---|
-| 1 | Charles LECLERC | Ferrari | 86.720 | 88.790 | 1.23 |
-| 2 | Oscar PIASTRI | McLaren | 86.760 | 88.980 | 1.31 |
-| 3 | Max VERSTAPPEN | Red Bull Racing | 87.620 | 88.750 | 1.18 |
-| 4 | Kimi ANTONELLI | Mercedes | 88.020 | 90.200 | 1.67 |
+| Rank | Driver | Team | No. | Fastest Lap (s) | Avg Pace (s) | Median Pace (s) | Consistency (σ) | Laps |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| 1 | Esteban OCON | Haas F1 Team | 31 | 105.388 | 109.418 | 107.070 | 11.523 | 49 |
+| 2 | Max VERSTAPPEN | Red Bull Racing | 1 | 103.388 | 109.706 | 105.362 | 16.648 | 50 |
+| 3 | Alexander ALBON | Williams | 23 | 104.152 | 109.894 | 105.861 | 13.846 | 49 |
+| 4 | George RUSSELL | Mercedes | 63 | 103.754 | 110.020 | 105.377 | 16.329 | 50 |
+| 5 | Carlos SAINZ | Williams | 55 | 103.972 | 110.060 | 105.791 | 16.553 | 50 |
 
 ### Constructor Standings
+*Note: Constructor Rank is determined primarily by Average Team Pace across all valid laps.*
 
-| Rank | Team | Best Lap (s) | Avg Team Pace (s) |
-|---|---|---|---|
-| 1 | Ferrari | 86.720 | 88.790 |
-| 2 | McLaren | 86.760 | 88.980 |
-| 3 | Red Bull Racing | 87.620 | 88.750 |
-| 4 | Mercedes | 88.020 | 90.200 |
-
+| Rank | Team | Best Lap (s) | Avg Team Pace (s) | Total Laps |
+| :--- | :--- | :--- | :--- | :--- |
+| 1 | Williams | 103.972 | 109.978 | 99 |
+| 2 | Red Bull Racing | 103.388 | 110.024 | 100 |
+| 3 | Mercedes | 103.754 | 110.060 | 100 |
+| 4 | Haas F1 Team | 104.288 | 110.235 | 99 |
+| 5 | McLaren | 104.155 | 110.364 | 50 |
 ---
+## 📊 Databricks SQL Dashboard
+The pipeline terminates in a Databricks SQL Dashboard, querying the Gold tables directly to provide race engineers and analysts with immediate visual insights. 
 
+
+![F1-Pulse Databricks Dashboard](images/Dashboard_preview.png)
+
+The dashboard is powered by the following live visualisations:
+
+*   **Fastest Driver (KPI):** Queries `driver_performance_metrics` to display the driver with the absolute lowest `fastest_lap_s`.
+*   **Top Team Pace (KPI):** Queries `constructor_standings` to find the team with the lowest `avg_team_pace_s`.
+*   **Speed vs. Consistency (Scatter Plot):** Maps `avg_lap_time_s` (X-axis) against `lap_consistency_s` (Y-axis) from the driver leaderboard, identifying drivers who are both fast and reliably consistent.
+*   **Ultimate Pace Gap (Bar Chart):** Uses a Common Table Expression (CTE) to calculate the `pace_delta_s` between the fastest constructor and the rest of the grid. 
+*   **Race Trace (Line Chart):** Visualizes the `rolling_avg_5lap_s` from the `lap_progression` table over time, showing how driver pace evolves as fuel burns off and tire degradation sets in.
 ## 🚀 Key Engineering Features
 
 - **Retry-safe ingestion**: configurable retries with delay and timeout — no silent failures on flaky APIs
